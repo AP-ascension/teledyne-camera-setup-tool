@@ -21,7 +21,7 @@ class Camera:
         self._Height = 0
         self._Left = 0
         self._Top = 0
-        self._Format = 'MONO8'
+        self._Format = 'RGB8'
         self._Filter = False
         
         self._DeviceInfo = False
@@ -94,7 +94,7 @@ class Camera:
             if Each in Input:
                 Value = Input[Each]
                 setattr(self, "_"+Each, Value)
-        if not self._DeviceInfo or (self._ID and (self._ID!=self._ID_Old)):
+        if not self._DeviceInfo and (self._ID and (self._ID!=self._ID_Old)):
             Return = self.Connect()
             if Return:
                 self._ID_Old = self._ID
@@ -123,6 +123,17 @@ class Camera:
         
     def Create(self):
         Trigger_Mode = []
+        if 'MONO' not in self._Format:
+            Camera_Info = str(SDK.CameraGetCapability(self.CameraHandle))
+            Lines = Camera_Info.splitlines()
+            for Line in Lines:
+                Key, Value = Line.split(':', 1)
+                Key, Value = Key.strip(), Value.strip()
+                if Key=='sIspCapacity':
+                    Key, Value = Value.split(':', 1)
+                    Key, Value = Key.strip(), Value.strip()
+                    if int(Value):
+                        self._Format = 'MONO8'
         SDK.CameraSetIspOutFormat(self.CameraHandle, getattr(SDK, f'CAMERA_MEDIA_TYPE_{self._Format}'))
         if self._Width<1 or self._Width>(self.Cap.sResolutionRange.iWidthMax-self._Left):
             self._Width = self.Cap.sResolutionRange.iWidthMax-self._Left
@@ -135,7 +146,10 @@ class Camera:
         SDK.CameraSetAeState(self.CameraHandle, 0)
         SDK.CameraSetTriggerCount(self.CameraHandle, 1)
         SDK.CameraPlay(self.CameraHandle)
-        self.FrameBufferSize = self.Cap.sResolutionRange.iWidthMax * self.Cap.sResolutionRange.iHeightMax
+        Size = 3
+        if 'MONO' in self._Format:
+            Size = 1
+        self.FrameBufferSize = self.Cap.sResolutionRange.iWidthMax * self.Cap.sResolutionRange.iHeightMax * Size
         self.FrameBuffer = SDK.CameraAlignMalloc(self.FrameBufferSize, 16)
         
     def Update(self):
@@ -172,7 +186,7 @@ class Camera:
                 SDK.CameraFlipFrameBuffer(self.FrameBuffer, Frame_Head, 1)
                 Frame_Data = (SDK.c_ubyte * Frame_Head.uBytes).from_address(self.FrameBuffer)
                 Frame = np.frombuffer(Frame_Data, dtype=np.uint8)
-                if self._Format == 'MONO8':
+                if 'MONO' in self._Format:
                     Frame = Frame.reshape((Frame_Head.iHeight, Frame_Head.iWidth, 1))
                     Frame = cv2.cvtColor(Frame, cv2.COLOR_GRAY2RGB)
                 else:
