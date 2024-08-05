@@ -30,27 +30,33 @@
                 Exposure
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
                 Gain
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
                 Gamma
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
                 Contrast
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
                 Sharpness
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
                 Saturation
                     Label
                     Entry
-                    Scale
+                    Bar
+                    Frame
             Size
                 Set
                 Width

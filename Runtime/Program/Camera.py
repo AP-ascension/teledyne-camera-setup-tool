@@ -5,10 +5,10 @@
 from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't Effect GUI Elements
 #################################################################################################################################
 #################################################################################################################################
-# -------------------------------------------------------------------------------------------------------------------------------
-# Developer Programming Start
-# -------------------------------------------------------------------------------------------------------------------------------
 
+#################################################################################################################################
+# Import Files
+#################################################################################################################################
 from Connect import Camera
 
 import time
@@ -19,6 +19,10 @@ import PIL
 from pathlib import Path
 from datetime import datetime
 
+#################################################################################################################################
+# Global Variables
+#################################################################################################################################
+
 Camera_List = []
 Current_Camera = False
 Camera_Run = False
@@ -28,6 +32,80 @@ Record_Run = False
 Grab_Run = False
 Record_Increment = 0
 Save_Path = str(Path.home() / "Downloads")
+
+#################################################################################################################################
+# Global Classes
+#################################################################################################################################
+class Slider():
+
+    def __init__(self, Bar, Frame):
+        self._Config = ['On_Change', 'Minimum', 'Maximum', 'Increment']
+        self._Bar = Bar
+        self._Frame = Frame
+        self._On_Change = False
+        self._Minimum = 0
+        self._Maximum = 100
+        self._Increment = 1
+        self._Bar.Set(0)
+        self._Frame.Bind(On_Click=lambda E: self.Progress_Start(E), On_Drag=lambda E: self.Progress(E), On_Release=lambda E: self.On_Change())
+        Bar_Data = self._Bar.Config_Get('Left', 'Width')
+        Minimum = Bar_Data['Left']
+        self._Frame.Config(Left=Minimum)
+        self._Frame.Show()
+        
+    def On_Change(self):
+        if self._On_Change:
+            self._On_Change()
+        
+    def Config_Get(self, *Input):
+        Return = {}
+        for Each in self._Config:
+            if Each in Input:
+                Return[Each] = getattr(self, "_"+Each)
+        return Return
+                
+    def Config(self, **Input):
+        for Each in self._Config:
+            if Each in Input:
+                Value = Input[Each]
+                setattr(self, "_"+Each, Value)
+        
+    def Get(self):
+        Progress = self._Bar.Get()
+        Range  = self._Maximum - self._Minimum
+        Value = self._Minimum + (Progress / 100.0) * Range
+        Value = round(Value / self._Increment) * self._Increment
+        return Value
+        
+    def Set(self, Value):
+        Range  = self._Maximum - self._Minimum
+        Value = (Value - self._Minimum) / Range
+        Value = Value * 100.0
+        self._Bar.Set(Value)
+        Bar_Data = self._Bar.Config_Get('Left', 'Width')
+        Frame_Data = self._Frame.Config_Get('Left', 'Width')
+        Minimum = Bar_Data['Left']
+        Maximum = Bar_Data['Left']+Bar_Data['Width']-Frame_Data['Width']
+        Frame_Left = Bar_Data['Left']+((Maximum-Minimum)*(Value/100))
+        self._Frame.Config(Left=Frame_Left)
+
+    def Progress_Start(self, E):
+        self._Start = E.x
+
+    def Progress(self, E):
+        Frame_Data = self._Frame.Config_Get('Left', 'Width')
+        Frame_Left = Frame_Data['Left'] + E.x - self._Start
+        Bar_Data = self._Bar.Config_Get('Left', 'Width')
+        Minimum = Bar_Data['Left']
+        Maximum = Bar_Data['Left']+Bar_Data['Width']-Frame_Data['Width']
+        Frame_Left = max(Minimum, min(Frame_Left, Maximum))
+        Bar_Progress = (Frame_Left-Bar_Data['Left'])/(Maximum-Minimum)*100
+        self._Bar.Set(Bar_Progress)
+        self._Frame.Config(Left=Frame_Left)
+
+#################################################################################################################################
+# Programming
+#################################################################################################################################
 
 #Camera Connect
 Root.Connect.Search.Bind(On_Click = lambda E: Search())
@@ -152,27 +230,33 @@ Root.Control.Option.Switch.Bind(On_Hover_In=lambda E: Root.Control.Option.Switch
 Root.Control.Option.Switch.Bind(On_Hover_Out=lambda E: Root.Control.Option.Switch.Config(Border_Color='#adadad', Background='#AED6F1'))
 
 Root.Control.Setup.Exposure.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Exposure', 'Entry'))
-Root.Control.Setup.Exposure.Scale.Bind(On_Change = lambda E: Update_Camera('Exposure', 'Scale'))
+Root.Control.Setup.Exposure.Scale = Slider(Root.Control.Setup.Exposure.Bar, Root.Control.Setup.Exposure.Frame)
+Root.Control.Setup.Exposure.Scale.Config(On_Change = lambda : Update_Camera('Exposure', 'Scale'))
 Root.Control.Setup.Exposure.Scale.Config(Minimum=100, Maximum=1000000, Increment=1)
 
 Root.Control.Setup.Gain.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gain', 'Entry'))
-Root.Control.Setup.Gain.Scale.Bind(On_Change = lambda E: Update_Camera('Gain', 'Scale'))
+Root.Control.Setup.Gain.Scale = Slider(Root.Control.Setup.Gain.Bar, Root.Control.Setup.Gain.Frame)
+Root.Control.Setup.Gain.Scale.Config(On_Change = lambda : Update_Camera('Gain', 'Scale'))
 Root.Control.Setup.Gain.Scale.Config(Minimum=8, Maximum=176, Increment=1)
 
 Root.Control.Setup.Gamma.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gamma', 'Entry'))
-Root.Control.Setup.Gamma.Scale.Bind(On_Change = lambda E: Update_Camera('Gamma', 'Scale'))
+Root.Control.Setup.Gamma.Scale = Slider(Root.Control.Setup.Gamma.Bar, Root.Control.Setup.Gamma.Frame)
+Root.Control.Setup.Gamma.Scale.Config(On_Change = lambda : Update_Camera('Gamma', 'Scale'))
 Root.Control.Setup.Gamma.Scale.Config(Minimum=0, Maximum=200, Increment=1)
 
 Root.Control.Setup.Contrast.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Contrast', 'Entry'))
-Root.Control.Setup.Contrast.Scale.Bind(On_Change = lambda E: Update_Camera('Contrast', 'Scale'))
+Root.Control.Setup.Contrast.Scale = Slider(Root.Control.Setup.Contrast.Bar, Root.Control.Setup.Contrast.Frame)
+Root.Control.Setup.Contrast.Scale.Config(On_Change = lambda : Update_Camera('Contrast', 'Scale'))
 Root.Control.Setup.Contrast.Scale.Config(Minimum=0, Maximum=200, Increment=1)
 
 Root.Control.Setup.Sharpness.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Sharpness', 'Entry'))
-Root.Control.Setup.Sharpness.Scale.Bind(On_Change = lambda E: Update_Camera('Sharpness', 'Scale'))
+Root.Control.Setup.Sharpness.Scale = Slider(Root.Control.Setup.Sharpness.Bar, Root.Control.Setup.Sharpness.Frame)
+Root.Control.Setup.Sharpness.Scale.Config(On_Change = lambda : Update_Camera('Sharpness', 'Scale'))
 Root.Control.Setup.Sharpness.Scale.Config(Minimum=0, Maximum=100, Increment=1)
 
 Root.Control.Setup.Saturation.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Saturation', 'Entry'))
-Root.Control.Setup.Saturation.Scale.Bind(On_Change = lambda E: Update_Camera('Saturation', 'Scale'))
+Root.Control.Setup.Saturation.Scale = Slider(Root.Control.Setup.Saturation.Bar, Root.Control.Setup.Saturation.Frame)
+Root.Control.Setup.Saturation.Scale.Config(On_Change = lambda : Update_Camera('Saturation', 'Scale'))
 Root.Control.Setup.Saturation.Scale.Config(Minimum=0, Maximum=100, Increment=1)
 
 Root.Control.Size.Set.Bind(On_Click = lambda E: Start_Set_Size())
@@ -216,7 +300,7 @@ def Update_Camera(Type, Widget):
     Setting = getattr(Root.Control.Setup, Type)
     Entry = getattr(Setting, 'Entry')
     Scale = getattr(Setting, 'Scale')
-    if Entry.Get() and Scale.Get():
+    if Entry.Get():
         if Widget=='Entry':
             Value = int(Entry.Get())
             Scale.Set(Value)

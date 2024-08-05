@@ -1,5 +1,8 @@
 # Change Log
 
+## V(1.5)
+- Slider desgins updated.
+
 ## V(1.4)
 - Image Zoom fixed from center out at mouse location.
 
