@@ -166,7 +166,7 @@ def Run_Camera():
                     else:
                         Record_Increment += 1
                         Root.Control.Option.Record.Set(f"RECORDING ({Record_Increment})")
-                Root.After(1, lambda : Load_Frame(Frame))
+                Root.After(0, lambda : Load_Frame(Frame))
         
 def Load_Frame(Frame):
     Temp_Frame = Frame.copy()
@@ -286,8 +286,6 @@ Root.Control.Option.Record.Config(Border_Color='#239B56', Background='#ABEBC6')
 
 Root.Control.Option.GrabX.Bind(On_Click = lambda E: Grabber())
 Root.Control.Option.GrabX.Config(Border_Color='#2874A6', Background='#AED6F1')
-
-Root.Maximize()
 
 def Switch():
     global Camera_Run, Record_Run
