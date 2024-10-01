@@ -31,6 +31,7 @@ Camera_Paused = False
 Record_Run = False
 Grab_Run = False
 Record_Increment = 0
+Image_Loading = False
 Save_Path = str(Path.home() / "Downloads")
 
 #################################################################################################################################
@@ -140,7 +141,8 @@ def Connect():
         Update()
 
 def Run_Camera():
-    global Camera_Run, Current_Camera, Camera_Pause, Camera_Paused, Record_Run, Grab_Run, Record_Increment
+    global Camera_Run, Current_Camera, Camera_Pause, Camera_Paused, Record_Run, Grab_Run, Record_Increment, Image_Loading
+    Image_Loading = False
     while True:
         if not Camera_Run:
             Current_Camera.Close()
@@ -148,6 +150,7 @@ def Run_Camera():
             break
         if Camera_Pause:
             Camera_Paused = True
+            Image_Loading = False
             time.sleep(0.01)
         else:
             Camera_Paused = False
@@ -166,11 +169,15 @@ def Run_Camera():
                     else:
                         Record_Increment += 1
                         Root.Control.Option.Record.Set(f"RECORDING ({Record_Increment})")
-                Root.After(0, lambda : Load_Frame(Frame))
+                if not Image_Loading:
+                    Image_Loading = True
+                    Temp_Frame = Frame.copy()
+                    Root.After(0, lambda: Load_Frame(Temp_Frame))
         
 def Load_Frame(Frame):
-    Temp_Frame = Frame.copy()
-    Root.Control.Display.Set(Temp_Frame)
+    global Image_Loading
+    Root.Control.Display.Set(Frame)
+    Image_Loading = False
         
 def Update():
     if Current_Camera:
