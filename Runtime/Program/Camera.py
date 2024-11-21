@@ -9,7 +9,7 @@ from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't E
 #################################################################################################################################
 # Import Files
 #################################################################################################################################
-from Connect import Camera
+from Connect import FLIR_Module as Camera
 
 import time
 import _thread
@@ -53,31 +53,31 @@ class Slider():
         Minimum = Bar_Data['Left']
         self._Frame.Config(Left=Minimum)
         self._Frame.Show()
-        
+
     def On_Change(self):
         if self._On_Change:
             self._On_Change()
-        
+
     def Config_Get(self, *Input):
         Return = {}
         for Each in self._Config:
             if Each in Input:
                 Return[Each] = getattr(self, "_"+Each)
         return Return
-                
+
     def Config(self, **Input):
         for Each in self._Config:
             if Each in Input:
                 Value = Input[Each]
                 setattr(self, "_"+Each, Value)
-        
+
     def Get(self):
         Progress = self._Bar.Get()
         Range  = self._Maximum - self._Minimum
         Value = self._Minimum + (Progress / 100.0) * Range
         Value = round(Value / self._Increment) * self._Increment
         return Value
-        
+
     def Set(self, Value):
         Range  = self._Maximum - self._Minimum
         Value = (Value - self._Minimum) / Range
@@ -173,12 +173,12 @@ def Run_Camera():
                     Image_Loading = True
                     Temp_Frame = Frame.copy()
                     Root.After(0, lambda: Load_Frame(Temp_Frame))
-        
+
 def Load_Frame(Frame):
     global Image_Loading
     Root.Control.Display.Set(Frame)
     Image_Loading = False
-        
+
 def Update():
     if Current_Camera:
         Setting = Current_Camera.Config_Get('Exposure', 'Gain', 'Gamma', 'Contrast', 'Sharpness', 'Saturation', 'Width', 'Height', 'Left', 'Top')
@@ -210,14 +210,14 @@ def Search():
     Root.Control.Hide()
     Root.Search.Show()
     _thread.start_new_thread(Search_Progress, ())
-    
+
 def Search_Init():
     global Camera_List
     Camera_List = Camera.Search()
     Root.Connect.List.Clear()
     for Device in Camera_List:
         Root.Connect.List.Add(f"{Device['Name']}-{Device['Sensor']}-{Device['Port']}-{Device['ID']}")
-        
+
 def Search_Progress():
     for X in range(0, 1001):
         Root.Search.Bar.Set(X/10)
@@ -227,7 +227,7 @@ def Search_Progress():
     Root.Search.Hide()
     Root.Control.Hide()
     Root.Connect.Show()
-    
+
 #Control
 Root.Control.Display.Config(Array=True)
 
@@ -300,7 +300,7 @@ def Switch():
     Camera_Run = False
     Root.Control.Option.Record.Config(Value='START RECORDING', Border_Color='#239B56', Background='#ABEBC6')
     Search()
-    
+
 def Update_Camera(Type, Widget):
     Setting = getattr(Root.Control.Setup, Type)
     Entry = getattr(Setting, 'Entry')
@@ -314,17 +314,17 @@ def Update_Camera(Type, Widget):
             Entry.Set(Value)
         if Current_Camera:
             Current_Camera.Config(**{Type: Value})
-            
+
 def Update_Size(Type, Sub):
     Entry = getattr(Root.Control.Size, Type).Entry
     if Entry.Get():
         Value = int(Entry.Get())
         if Current_Camera:
             Current_Camera.Config(**{Sub: Value})
-            
+
 def Start_Set_Size():
     _thread.start_new_thread(Set_Size, ())
-            
+
 def Set_Size():
     global Camera_Pause, Camera_Paused
     if Current_Camera:
@@ -333,7 +333,7 @@ def Set_Size():
             time.sleep(0.01)
         Current_Camera.Set_Size()
         Camera_Pause = False
-        
+
 def Get_Save_Path():
     global Save_Path
     Initial=''
@@ -353,7 +353,7 @@ def Check_Save_Path():
         Root.Control.Path.Entry.Config(Border_Color='black')
     else:
         Root.Control.Path.Entry.Config(Border_Color='red')
-        
+
 def Recorder():
     global Record_Run, Record_Increment
     if Record_Run:
@@ -363,18 +363,18 @@ def Recorder():
         Root.Control.Option.Record.Config(Value='RECORDING (0)', Border_Color='#B03A2E', Background='#F5B7B1')
         Record_Increment = 0
         Record_Run = True
-        
+
 def Grabber():
     global Grab_Run
     Grab_Run = True
-        
+
 def Close_Camera():
     global Camera_Run, Current_Camera
     Camera_Run = False
     if Current_Camera:
         Current_Camera.Close()
         Current_Camera = False
-        
+
 Root.Bind(On_Close=lambda : Close_Camera())
 
 #Start

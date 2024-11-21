@@ -1,1 +1,1 @@
-from .L_Camera import Camera
+from .L_FLIR_Module import FLIR_Module
