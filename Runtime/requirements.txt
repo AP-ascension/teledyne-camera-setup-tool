@@ -1,0 +1,5 @@
+numpy==1.26.4
+matplotlib
+opencv-python
+spinnaker_python-4.0.0.116-cp310-cp310-win_amd64.whl
+requests

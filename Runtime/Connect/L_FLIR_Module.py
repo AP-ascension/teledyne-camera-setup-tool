@@ -4,32 +4,28 @@ import _thread
 from multiprocessing import shared_memory
 import time
 
-camera_SN_database = {
-    1: '24310060',
-    2: '24310057'
-}
-
 class FLIR_Module:
     def __init__(self):
-        self._Config = ['ID', 'exposure', 'gain', 'gamma', 'Contrast', 'sharpness', 'saturation', 'Width', 'Height', 'Left', 'Top', 'Format']
+        self._Config = ['ID', 'exposure', 'gain', 'gamma', 'contrast', 'sharpness', 'saturation', 'width', 'height', 'left', 'top', 'format']
         self._ID = False
         self._ID_Old = False
         self._exposure = 25000
         self._gain = 8
         self._gamma = 100
-        self._Contrast = 100
+        self._contrast = 100
         self._sharpness = 0
         self._saturation = 0
-        self._Width = 0
-        self._Height = 0
-        self._Left = 0
-        self._Top = 0
-        self._Format = 'MONO8'
-        self._Filter = False
+        self._width = 8000
+        self._height = 8000
+        self._left = 0
+        self._top = 0
+        self._format = 'Mono8'
+        self._filter = False # FLIR does have support for various filters
 
         self.system = None
         self.device_list = None
         self.device = None
+        self.device_info = None
         self.node_map = None
         self.run_camera = True
 
@@ -66,24 +62,23 @@ class FLIR_Module:
         System.ReleaseInstance()
         return Devices
     @staticmethod
-    def Format():
-        return ['MONO8', 'RGB8']
+    def format():
+        return ['Mono8', 'BGR8']
 
     def Size(self):
-        if self.Device_Info:
-            return {'Width': self.Cap.sResolutionRange.iWidthMax, 'Height': self.Cap.sResolutionRange.iHeightMax}
+        width_node = SDK.CIntegerPtr(self.node_map.GetNode('Width'))
+        height_node = SDK.CIntegerPtr(self.node_map.GetNode('Height'))
+        if self.device_info:
+            return [width_node.GetMax(), height_node.GetMax()]
         else:
             return False
 
-    def Config_Get(self, *Input):
-        Return = {}
-        for Each in self._Config:
-            if Each in Input:
-                Return[Each] = getattr(self, "_"+Each)
-        return Return
+    def Config_Get(self):
+        return [self._exposure, self._gain, self._gamma, self._contrast, self._sharpness, self._saturation, self._width, self._height, self._left, self._top]
 
     def Config(self, **Input):
         print('FLIR_Module: Config()')
+        result = True
         # change attributes of specified parameters
         for Each in self._Config:
             if Each in Input:
@@ -101,7 +96,9 @@ class FLIR_Module:
                 print("No camera connected! Exiting")
                 return False
 
-        self.Update()
+        result &= self.Update()
+
+        return result
 
     def Connect(self):
         print('FLIR_Module: Connect()')
@@ -136,11 +133,12 @@ class FLIR_Module:
                 # Cameras are initalized with IDs. They use this ID to reference a database
                 # where the camera serial number can be found. I am using a dictionary to mimic
                 # the database in the meantime.
-                if camera_SN_database.get(self._ID)==device_serial_number:
+                if self._ID==device_serial_number:
                     self.device = device
 
                     self.device.Init()
                     self.node_map = self.device.GetNodeMap()
+                    self.device_info = [self.device.DeviceModelName.GetValue(), self.device.DeviceSerialNumber.GetValue()]
 
                     return True
 
@@ -251,82 +249,140 @@ class FLIR_Module:
 
     def Update(self):
         print('FLIR_Module: Update()')
+        result = True
         try:
 
-            # Set exposure
-            self.set_exposure() # good
-            self.set_gain() # good
-            self.set_gamma() # good
-            self.set_contrast() # not implemented
-            self.set_sharpness() # good
-            self.set_saturation() # implemented but not sure of function until we use color camera
+            result &= self.set_exposure() # good
+            result &= self.set_gain() # good
+            result &= self.set_gamma() # good
+            result &= self.set_contrast() # not implemented
+            result &= self.set_sharpness() # good
+            result &= self.set_saturation() # implemented but not sure of function until we use color camera
+
+            result &= self.set_size() # good
 
         except Exception as e:
             print(e)
             return False
 
-        print('Update complete')
+        return result
 
-    def Set_Size(self):
-        # Even with the example script I am unable to set height and width. I am met with an error that says
-        # height and width are unsettable for certain camera models
-        """
-        print(f'Device Node: {self._Device_Node}')
-        Width = SDK.CIntegerPtr(self._Device_Node.GetNode('Width'))
-        Height = SDK.CIntegerPtr(self._Device_Node.GetNode('Height'))
+    def set_size(self):
+        result = True
+        try:
+            self.device.EndAcquisition()
 
-        Width_Max = Width.GetMax()
-        Height_Max = Height.GetMax()
+            # set pixel format
+            if self._format in self.format():
+                node_pixel_format = SDK.CEnumerationPtr(self.node_map.GetNode('PixelFormat'))
+                if SDK.IsAvailable(node_pixel_format) and SDK.IsWritable(node_pixel_format):
+                    node_pixel_format_entry_ptr = SDK.CEnumEntryPtr(node_pixel_format.GetEntryByName(self._format))
+                    if SDK.IsAvailable(node_pixel_format_entry_ptr) and SDK.IsReadable(node_pixel_format_entry_ptr):
 
-        print(Width_Max, Height_Max)
-        #""""""
-        if self._Width<1 and self._Width>(self.Cap.sResolutionRange.iWidthMax-self._Left):
-            self._Width = self.Cap.sResolutionRange.iWidthMax-self._Left
-        if self._Height<1 and self._Height>(self.Cap.sResolutionRange.iHeightMax-self._Top):
-            self._Height = self.Cap.sResolutionRange.iHeightMax-self._Top
-        SDK.CameraPause(self.CameraHandle)
-        SDK.CameraSetImageResolutionEx(self.CameraHandle, 255, 0, 0, self._Left, self._Top, self._Width, self._Height, 0, 0)
-        SDK.CameraPlay(self.CameraHandle)
+                        pixel_format_int_value = node_pixel_format_entry_ptr.GetValue() # get format's corresponding int value
+                        node_pixel_format.SetIntValue(pixel_format_int_value) # set int as value for enumeration node
+
+                        print('Pixel format set to %s...' % node_pixel_format.GetCurrentEntry().GetSymbolic())
+
+                    else:
+                        print(f'Pixel format {self._format} not available...')
+                        result = False
+
+                else:
+                    print(f'Pixel format, {self._format}, not available...')
+                    result = False
 
 
-        node_width = SDK.CIntegerPtr(self._Device_Node.GetNode('Width'))
-        print(f"node_width: {node_width.GetValue()}")
-        if SDK.IsReadable(node_width) and SDK.IsWritable(node_width):
-            width_inc = node_width.GetInc()
+            #----------------------------------------------------------------------------------------
+            x_offset_node = SDK.CIntegerPtr(self.node_map.GetNode('OffsetX'))
+            y_offset_node = SDK.CIntegerPtr(self.node_map.GetNode('OffsetY'))
 
-            if width_to_set % width_inc != 0:
-                width_to_set = int(width_to_set / width_inc) * width_inc
+            # set x offset
+            if SDK.IsAvailable(x_offset_node) and SDK.IsWritable(x_offset_node):
 
-            node_width.SetValue(self._Width)
+                x_offset_to_set = round(self._left / x_offset_node.GetInc()) * x_offset_node.GetInc() # round to nearest increment value
+                x_offset_to_set = min(x_offset_node.GetMax(), x_offset_to_set) # less then max value
+                x_offset_to_set = max(x_offset_node.GetMin(), x_offset_to_set) # more then min value
 
-            print('\tWidth set to {}...'.format(node_width.GetValue()))
+                x_offset_node.SetValue(x_offset_to_set)
+                self._left = x_offset_node.GetValue()
 
-        else:
-            print('\tUnable to set width; width for sequencer not available on all camera models...')
+                print('Offset X set to %i...' % x_offset_node.GetValue())
 
-        # Set height; height recorded in pixels
-        node_height = SDK.CIntegerPtr(self._Device_Node.GetNode('Height'))
-        if SDK.IsReadable(node_height) and SDK.IsWritable(node_height):
-            height_inc = node_height.GetInc()
+            else:
+                print('Offset X not available...')
+                result = False
 
-            if height_to_set % height_inc != 0:
-                height_to_set = int(height_to_set / height_inc) * height_inc
+            # set y offset
+            if SDK.IsAvailable(y_offset_node) and SDK.IsWritable(y_offset_node):
 
-            node_height.SetValue(height_to_set)
+                y_offset_to_set = round(self._top / y_offset_node.GetInc()) * y_offset_node.GetInc() # round to nearest increment value
+                y_offset_to_set = min(y_offset_node.GetMax(), y_offset_to_set) # less then max value
+                y_offset_to_set = max(y_offset_node.GetMin(), y_offset_to_set) # more then min value
 
-            print('\tHeight set to %d...' % node_height.GetValue())
+                y_offset_node.SetValue(y_offset_to_set)
+                self._top = y_offset_node.GetValue()
 
-        else:
-            print('\tUnable to set height; height for sequencer not available on all camera models...')
-        """
+                print('Offset Y set to %i...' % y_offset_node.GetValue())
+
+            else:
+                print('Offset Y not available...')
+                result = False
+
+            #----------------------------------------------------------------------------------------
+            width_node = SDK.CIntegerPtr(self.node_map.GetNode('Width'))
+            height_node = SDK.CIntegerPtr(self.node_map.GetNode('Height'))
+
+            # set image width
+            if SDK.IsAvailable(width_node) and SDK.IsWritable(width_node):
+
+                width_to_set = round(self._width / width_node.GetInc()) * width_node.GetInc() # round to nearest increment value
+                width_to_set = min(width_node.GetMax(), width_to_set) # less then max value
+                width_to_set = max(width_node.GetMin(), width_to_set) # more then min value
+
+                width_node.SetValue(width_to_set)
+                self._width = width_node.GetValue()
+
+                print('Width set to %i...' % width_node.GetValue())
+            else:
+                print('Width not available...')
+                result = False
+
+            # set image height
+            if SDK.IsAvailable(height_node) and SDK.IsWritable(height_node):
+
+                height_to_set = round(self._height / height_node.GetInc()) * height_node.GetInc() # round to nearest increment value
+                height_to_set = min(height_node.GetMax(), height_to_set) # less then max value
+                height_to_set = max(height_node.GetMin(), height_to_set) # more then min value
+
+                height_node.SetValue(height_to_set)
+                self._height = height_node.GetValue()
+
+                print('Height set to %i...' % height_node.GetValue())
+
+            else:
+                print('Height not available...')
+                result = False
+
+
+            self.device.BeginAcquisition()
+
+        except SDK.SpinnakerException as ex:
+            print('Error: %s' % ex)
+            return False
+
+        return result
 
     def Close(self):
-        if self.Device_Info:
+        if self.device_info:
             try:
                 SDK.CameraUnInit(self.CameraHandle)
                 SDK.CameraAlignFree(self.FrameBuffer)
             except:
                 return False
+
+    def Info(self):
+        return self.device_info
 
     def set_exposure(self):
         print('FLIR_Module: set_exposure()')
@@ -360,8 +416,8 @@ class FLIR_Module:
 
     def set_gain(self):
         print('FLIR_Module: set_gain()')
+        result = True
         try:
-            result = True
             if self.device.GainAuto.GetAccessMode() != SDK.RW:
                 print('Unable to disable automatic gain. Aborting...')
                 return False
@@ -385,8 +441,8 @@ class FLIR_Module:
 
     def set_gamma(self):
         print('FLIR_Module: set_gamma()')
+        result = True
         try:
-            result = True
             if self.device.GammaEnable.GetAccessMode() != SDK.RW:
                 return False
 
@@ -408,11 +464,12 @@ class FLIR_Module:
 
     def set_contrast(self):
         print('No implementation for contrast adjustment!')
+        return True
 
     def set_sharpness(self):
         print('FLIR_Module: set_sharpness()')
+        result = True
         try:
-            result = True
             # Sharpness and saturation are advanced controls that require the ISP be enabled and the image processing core be utilized
             # in order to enable ISP, aquistion must be stopped
 
@@ -459,9 +516,9 @@ class FLIR_Module:
 
     def set_saturation(self):
         print('FLIR_Module: set_saturation()')
+        result = True
         try:
-            result = True
-            if self._Format == 'RGB8':
+            if self._format == 'BGR8':
                 # Sharpness and saturation are advanced controls that require the ISP be enabled and the image processing core be utilized
                 # in order to enable ISP, aquistion must be stopped
 
@@ -589,11 +646,11 @@ class FLIR_Module:
                 print('Image incomplete with image status %d ...' % image_ptr.GetImageStatus())
 
             else:
-                image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._Format == 'RGB8' else 1)
+                image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._format == 'BGR8' else 1)
 
                 if self.sm is None:
                     memory_frame = np.zeros(image.shape, dtype=np.uint8)
-                    self.sm = shared_memory.SharedMemory(name=f'cam{self._ID}', create=True, size=memory_frame.nbytes)
+                    self.sm = shared_memory.SharedMemory(name='FlirSetupTool', create=True, size=memory_frame.nbytes)
 
                 image_shape = image.shape
                 image_buffer = np.ndarray(image.shape, dtype=image.dtype, buffer=self.sm.buf)

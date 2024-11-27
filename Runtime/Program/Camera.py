@@ -2,6 +2,7 @@
 # Gluonix Runtime
 # -------------------------------------------------------------------------------------------------------------------------------
 #################################################################################################################################
+import PIL.Image
 from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't Effect GUI Elements
 #################################################################################################################################
 #################################################################################################################################
@@ -10,18 +11,25 @@ from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't E
 # Import Files
 #################################################################################################################################
 from Connect import FLIR_Module as Camera
+from RPC_Classes import Client
+from multiprocessing import Process, shared_memory
 
 import time
 import _thread
-import os
+import os, sys
 import cv2
 import PIL
 from pathlib import Path
 from datetime import datetime
+import numpy as np
 
 #################################################################################################################################
 # Global Variables
 #################################################################################################################################
+
+rpc_client = Client(61010)
+rpc_server_lock = _thread.allocate_lock()
+shm = None
 
 Camera_List = []
 Current_Camera = False
@@ -37,6 +45,7 @@ Save_Path = str(Path.home() / "Downloads")
 #################################################################################################################################
 # Global Classes
 #################################################################################################################################
+
 class Slider():
 
     def __init__(self, Bar, Frame):
@@ -124,28 +133,29 @@ Root.Connect.Format.Add("RGB")
 Root.Connect.Format.Set("MONO")
 
 def Connect():
-    global Current_Camera, Camera_Run
+    global Current_Camera, Camera_Run, rpc_client
     Device = Root.Connect.List.Get()
     Format = Root.Connect.Format.Get()+"8"
     if Device:
         Device = Device.split('-')
         SN = Device[len(Device)-1]
-        Current_Camera = Camera()
-        Current_Camera.Config(Format=Format)
-        Current_Camera.Config(ID=SN)
+
+        # configure camera by serial number
+        rpc_client.config(SN)
+        # here is where I will likely also have to initalize format
         Camera_Run = True
+        Update()
         _thread.start_new_thread(Run_Camera, ())
+
         Root.Connect.Hide()
         Root.Search.Hide()
         Root.Control.Show()
-        Update()
 
 def Run_Camera():
-    global Camera_Run, Current_Camera, Camera_Pause, Camera_Paused, Record_Run, Grab_Run, Record_Increment, Image_Loading
+    global Camera_Run, Current_Camera, Camera_Pause, Camera_Paused, Record_Run, Grab_Run, Record_Increment, Image_Loading, rpc_client, shm, rpc_server_lock
     Image_Loading = False
     while True:
         if not Camera_Run:
-            Current_Camera.Close()
             Current_Camera = False
             break
         if Camera_Pause:
@@ -154,55 +164,70 @@ def Run_Camera():
             time.sleep(0.01)
         else:
             Camera_Paused = False
-            Frame = Current_Camera.Trigger()
-            if Frame is not False:
+            rpc_server_lock.acquire()
+            dim = rpc_client.trigger()
+            rpc_server_lock.release()
+            if dim is not False:
                 if Record_Run or Grab_Run:
                     Name_Time = time.time()
                     Milliseconds = int(round(Name_Time * 1000))
                     Name_Date = datetime.fromtimestamp(Name_Time)
                     Milliseconds_Part = Milliseconds % 1000
                     Name_Date_Formatted = Name_Date.strftime('%Y%m%d-%H%M%S') + f'.{Milliseconds_Part:03d}'
-                    Frame_CV = cv2.cvtColor(Frame, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(f"{Save_Path}/Image-{Name_Date_Formatted}.bmp", Frame_CV)
+                    #Frame_CV = cv2.cvtColor(Frame, cv2.COLOR_RGB2BGR)
+                    #cv2.imwrite(f"{Save_Path}/Image-{Name_Date_Formatted}.bmp", Frame_CV)
                     if Grab_Run:
                         Grab_Run = False
                     else:
                         Record_Increment += 1
                         Root.Control.Option.Record.Set(f"RECORDING ({Record_Increment})")
                 if not Image_Loading:
+
                     Image_Loading = True
-                    Temp_Frame = Frame.copy()
+                    if shm is None:
+                        shm = shared_memory.SharedMemory(name='FlirSetupTool')
+                    Temp_Frame = np.ndarray(dim, dtype=np.uint8, buffer=shm.buf)
+
+                    if Temp_Frame.shape[2] == 1:
+                        Temp_Frame = Temp_Frame.squeeze(axis=-1)  # Convert to 2D (height, width)
+                        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (grayscale)
+
+                    # If it's a color image (3 channels), ensure the shape is correct
+                    elif Temp_Frame.shape[2] == 3:
+                        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (RGB)
+
                     Root.After(0, lambda: Load_Frame(Temp_Frame))
 
 def Load_Frame(Frame):
     global Image_Loading
-    Root.Control.Display.Set(Frame)
+    Root.Control.LiveView.Set(Frame)
     Image_Loading = False
 
 def Update():
-    if Current_Camera:
-        Setting = Current_Camera.Config_Get('Exposure', 'Gain', 'Gamma', 'Contrast', 'Sharpness', 'Saturation', 'Width', 'Height', 'Left', 'Top')
-        Info = Current_Camera.Info()
-        Size = Current_Camera.Size()
-        Root.Control.Info.Name.Entry.Set(Info['Name'])
-        Root.Control.Info.ID.Entry.Set(Info['ID'])
-        Root.Control.Info.Size.Entry.Set(f"{Size['Width']} X {Size['Height']}")
-        Root.Control.Setup.Exposure.Entry.Set(Setting['Exposure'])
-        Root.Control.Setup.Exposure.Scale.Set(Setting['Exposure'])
-        Root.Control.Setup.Gain.Entry.Set(Setting['Gain'])
-        Root.Control.Setup.Gain.Scale.Set(Setting['Gain'])
-        Root.Control.Setup.Gamma.Entry.Set(Setting['Gamma'])
-        Root.Control.Setup.Gamma.Scale.Set(Setting['Gamma'])
-        Root.Control.Setup.Contrast.Entry.Set(Setting['Contrast'])
-        Root.Control.Setup.Contrast.Scale.Set(Setting['Contrast'])
-        Root.Control.Setup.Sharpness.Entry.Set(Setting['Sharpness'])
-        Root.Control.Setup.Sharpness.Scale.Set(Setting['Sharpness'])
-        Root.Control.Setup.Saturation.Entry.Set(Setting['Saturation'])
-        Root.Control.Setup.Saturation.Scale.Set(Setting['Saturation'])
-        Root.Control.Size.Width.Entry.Set(Setting['Width'])
-        Root.Control.Size.Height.Entry.Set(Setting['Height'])
-        Root.Control.Size.Left.Entry.Set(Setting['Left'])
-        Root.Control.Size.Topx.Entry.Set(Setting['Top'])
+    global rpc_client, Camera_Run
+    if Camera_Run:
+        Setting = rpc_client.get_config()
+        Info = rpc_client.get_info()
+        Size = rpc_client.get_size()
+        Root.Control.Info.Name.Entry.Set(Info[0])
+        Root.Control.Info.ID.Entry.Set(Info[1])
+        Root.Control.Info.Size.Entry.Set(f"{Size[0]} X {Size[1]}")
+        Root.Control.Setup.Exposure.Entry.Set(Setting[0])
+        Root.Control.Setup.Exposure.Scale.Set(Setting[0])
+        Root.Control.Setup.Gain.Entry.Set(Setting[1])
+        Root.Control.Setup.Gain.Scale.Set(Setting[1])
+        Root.Control.Setup.Gamma.Entry.Set(Setting[2])
+        Root.Control.Setup.Gamma.Scale.Set(Setting[2])
+        Root.Control.Setup.Contrast.Entry.Set(Setting[3])
+        Root.Control.Setup.Contrast.Scale.Set(Setting[3])
+        Root.Control.Setup.Sharpness.Entry.Set(Setting[4])
+        Root.Control.Setup.Sharpness.Scale.Set(Setting[4])
+        Root.Control.Setup.Saturation.Entry.Set(Setting[5])
+        Root.Control.Setup.Saturation.Scale.Set(Setting[5])
+        Root.Control.Size.Width.Entry.Set(Setting[6])
+        Root.Control.Size.Height.Entry.Set(Setting[7])
+        Root.Control.Size.Left.Entry.Set(Setting[8])
+        Root.Control.Size.Topx.Entry.Set(Setting[9])
 
 # Camera Search
 def Search():
@@ -216,20 +241,20 @@ def Search_Init():
     Camera_List = Camera.Search()
     Root.Connect.List.Clear()
     for Device in Camera_List:
-        Root.Connect.List.Add(f"{Device['Name']}-{Device['Sensor']}-{Device['Port']}-{Device['ID']}")
+        Root.Connect.List.Add(f"{Device['DeviceDisplayName']}-{Device['DeviceSerialNumber']}")
 
 def Search_Progress():
-    for X in range(0, 1001):
-        Root.Search.Bar.Set(X/10)
+    for X in range(0, 101):
+        Root.Search.Bar.Set(X)
         time.sleep(0.001)
-        if X==700:
+        if X==1:
             _thread.start_new_thread(Search_Init, ())
     Root.Search.Hide()
     Root.Control.Hide()
     Root.Connect.Show()
 
 #Control
-Root.Control.Display.Config(Array=True)
+Root.Control.LiveView.Config(Pil=True)
 
 Root.Control.Option.Switch.Bind(On_Click = lambda E: Switch())
 Root.Control.Option.Switch.Config(Border_Color='#adadad', Background='#AED6F1')
@@ -302,25 +327,59 @@ def Switch():
     Search()
 
 def Update_Camera(Type, Widget):
-    Setting = getattr(Root.Control.Setup, Type)
-    Entry = getattr(Setting, 'Entry')
-    Scale = getattr(Setting, 'Scale')
-    if Entry.Get():
-        if Widget=='Entry':
-            Value = int(Entry.Get())
-            Scale.Set(Value)
-        else:
-            Value = int(Scale.Get())
-            Entry.Set(Value)
-        if Current_Camera:
-            Current_Camera.Config(**{Type: Value})
+    global rpc_client, rpc_server_lock
+    try:
+        Setting = getattr(Root.Control.Setup, Type)
+        Entry = getattr(Setting, 'Entry')
+        Scale = getattr(Setting, 'Scale')
+        if Entry.Get():
+            if Widget=='Entry':
+                Value = int(Entry.Get())
+                Scale.Set(Value)
+            else:
+                Value = int(Scale.Get())
+                Entry.Set(Value)
+
+            rpc_server_lock.acquire()
+            if Type=='Exposure':
+                print(f'Value of exposure to be set: {Value}')
+                rpc_client.set_exposure(Value)
+            elif Type=='Gain':
+                rpc_client.set_gain(Value)
+            elif Type=='Gamma':
+                rpc_client.set_gamma(Value)
+            elif Type=='Contrast':
+                rpc_client.set_contrast(Value)
+            elif Type=='Sharpness':
+                rpc_client.set_sharpness(Value)
+            elif Type=='Saturation':
+                rpc_client.set_saturation(Value)
+            rpc_server_lock.release()
+
+    except:
+        print("Error updating camera.")
+
 
 def Update_Size(Type, Sub):
-    Entry = getattr(Root.Control.Size, Type).Entry
-    if Entry.Get():
-        Value = int(Entry.Get())
-        if Current_Camera:
-            Current_Camera.Config(**{Sub: Value})
+    global rpc_client, rpc_server_lock
+
+    try:
+        Entry = getattr(Root.Control.Size, Type).Entry
+        if Entry.Get():
+            Value = int(Entry.Get())
+
+            rpc_server_lock.acquire()
+            if Type=='Width':
+                rpc_client.set_width(Value)
+            elif Type=='Height':
+                rpc_client.set_height(Value)
+            elif Type=='Topx':
+                rpc_client.set_top(Value)
+            elif Type=='Left':
+                rpc_client.set_left(Value)
+            rpc_server_lock.release()
+    except:
+        print("Error updating camera.")
 
 def Start_Set_Size():
     _thread.start_new_thread(Set_Size, ())
@@ -376,6 +435,7 @@ def Close_Camera():
         Current_Camera = False
 
 Root.Bind(On_Close=lambda : Close_Camera())
+
 
 #Start
 Search()

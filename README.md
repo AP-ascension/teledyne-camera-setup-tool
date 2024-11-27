@@ -38,3 +38,6 @@ cd teledyne-camera-Setup-Tool
 - Gluonix Designer Runtime Requirements
 - Spinnaker Wheel Install
 - PySpin Python Library
+
+# Running
+- to run, call python Runtime/Camera.py
