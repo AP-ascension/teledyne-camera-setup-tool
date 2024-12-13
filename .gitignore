@@ -1,2 +1,6 @@
+Runtime/__pycache__
+Runtime/RPC_Classes/__pycache__
+Runtime/Nucleon/__pycache__
+Runtime/Nucleon/Gluonix/__pycache__
 Runtime/spinnaker_python-4.0.0.116-cp310-cp310-win_amd64.whl
 Runtime/venv
