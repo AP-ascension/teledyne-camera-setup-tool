@@ -136,10 +136,11 @@ def Connect():
     global Current_Camera, Camera_Run, rpc_client
     Device = Root.Connect.List.Get()
     Format = Root.Connect.Format.Get()+"8"
+    print(f'Device Selected: {Device}')
     if Device:
         Device = Device.split('-')
-        SN = Device[len(Device)-1]
-
+        SN = Device[-1]
+        print(f'Connecting to camera with SN: {SN}')
         # configure camera by serial number
         rpc_client.config(SN)
         # here is where I will likely also have to initalize format
