@@ -24,11 +24,21 @@ from datetime import datetime
 import numpy as np
 
 
-import socket, subprocess, sys
+import socket, subprocess, sys, atexit
 
 #################################################################################################################################
 # Starting RPC Server
 #################################################################################################################################
+
+subprocesses = []
+
+def cleanup():
+    # Terminate all subprocesses when the main program exits
+    for proc in subprocesses:
+        proc.terminate()
+
+# Register cleanup function to be called on program exit
+atexit.register(cleanup)
 
 def check_server(host, port):
     try:
@@ -43,6 +53,7 @@ def check_server(host, port):
 for no in range(0, 10):
     if not check_server('127.0.0.1', (61010 + no)):
         process = subprocess.Popen([sys.executable, "FLIR_RPC_Server.py"] + [str(no)])
+        subprocesses.append(process)
         break
     else:
         print(f'Exisitng process running on port: {61010 + no}')
