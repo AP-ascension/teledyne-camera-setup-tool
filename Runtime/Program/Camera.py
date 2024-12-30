@@ -82,7 +82,7 @@ class Slider():
         self._On_Change = False
         self._Minimum = 0
         self._Maximum = 100
-        self._Increment = 1
+        self._Increment = 0.001
         self._Bar.Set(0)
         self._Frame.Bind(On_Click=lambda E: self.Progress_Start(E), On_Drag=lambda E: self.Progress(E), On_Release=lambda E: self.On_Change())
         Bar_Data = self._Bar.Config_Get('Left', 'Width')
@@ -111,7 +111,7 @@ class Slider():
         Progress = self._Bar.Get()
         Range  = self._Maximum - self._Minimum
         Value = self._Minimum + (Progress / 100.0) * Range
-        Value = round(Value / self._Increment) * self._Increment
+        Value = round((Value / self._Increment), 3) * self._Increment
         return Value
 
     def Set(self, Value):
@@ -177,6 +177,7 @@ def Connect():
 
         Camera_Run = True
         Update()
+        update_sliders()
         _thread.start_new_thread(Run_Camera, ())
 
         Root.Connect.Hide()
@@ -200,14 +201,17 @@ def Run_Camera():
             dim = rpc_client.trigger()
             rpc_server_lock.release()
             if dim is not False:
+
+                
                 if Record_Run or Grab_Run:
                     Name_Time = time.time()
                     Milliseconds = int(round(Name_Time * 1000))
                     Name_Date = datetime.fromtimestamp(Name_Time)
                     Milliseconds_Part = Milliseconds % 1000
                     Name_Date_Formatted = Name_Date.strftime('%Y%m%d-%H%M%S') + f'.{Milliseconds_Part:03d}'
-                    #Frame_CV = cv2.cvtColor(Frame, cv2.COLOR_RGB2BGR)
-                    #cv2.imwrite(f"{Save_Path}/Image-{Name_Date_Formatted}.bmp", Frame_CV)
+                    Frame = get_image_from_shared_mem(dim)
+                    Frame_CV = cv2.cvtColor(Frame, cv2.COLOR_RGB2BGR)
+                    cv2.imwrite(f"{Save_Path}/Image-{Name_Date_Formatted}.bmp", Frame_CV)
                     if Grab_Run:
                         Grab_Run = False
                     else:
@@ -216,19 +220,25 @@ def Run_Camera():
                 if not Image_Loading:
 
                     Image_Loading = True
-                    if shm is None:
-                        shm = shared_memory.SharedMemory(name=f'cam{camera_serial_number}')
-                    Temp_Frame = np.ndarray(dim, dtype=np.uint8, buffer=shm.buf)
 
-                    if Temp_Frame.shape[2] == 1:
-                        Temp_Frame = Temp_Frame.squeeze(axis=-1)  # Convert to 2D (height, width)
-                        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (grayscale)
-
-                    # If it's a color image (3 channels), ensure the shape is correct
-                    elif Temp_Frame.shape[2] == 3:
-                        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (RGB)
-
+                    
+                    Temp_Frame = get_image_from_shared_mem(dim)
                     Root.After(0, lambda: Load_Frame(Temp_Frame))
+
+def get_image_from_shared_mem(dim):
+    global camera_serial_number
+    shm = shared_memory.SharedMemory(name=f'cam{camera_serial_number}')
+    Temp_Frame = np.ndarray(dim, dtype=np.uint8, buffer=shm.buf)
+
+    if Temp_Frame.shape[2] == 1:
+        Temp_Frame = Temp_Frame.squeeze(axis=-1)  # Convert to 2D (height, width)
+        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (grayscale)
+
+    # If it's a color image (3 channels), ensure the shape is correct
+    elif Temp_Frame.shape[2] == 3:
+        Temp_Frame = PIL.Image.fromarray(Temp_Frame)  # Create Pillow image (RGB)
+    
+    return np.array(Temp_Frame)
 
 def Load_Frame(Frame):
     global Image_Loading
@@ -286,7 +296,7 @@ def Search_Progress():
     Root.Connect.Show()
 
 #Control
-Root.Control.LiveView.Config(Pil=True)
+Root.Control.LiveView.Config(Array=True)
 
 Root.Control.Option.Switch.Bind(On_Click = lambda E: Switch())
 Root.Control.Option.Switch.Config(Border_Color='#adadad', Background='#AED6F1')
@@ -296,17 +306,17 @@ Root.Control.Option.Switch.Bind(On_Hover_Out=lambda E: Root.Control.Option.Switc
 Root.Control.Setup.Exposure.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Exposure', 'Entry'))
 Root.Control.Setup.Exposure.Scale = Slider(Root.Control.Setup.Exposure.Bar, Root.Control.Setup.Exposure.Frame)
 Root.Control.Setup.Exposure.Scale.Config(On_Change = lambda : Update_Camera('Exposure', 'Scale'))
-Root.Control.Setup.Exposure.Scale.Config(Minimum=100, Maximum=1000000, Increment=1)
+Root.Control.Setup.Exposure.Scale.Config(Minimum=100, Maximum=100000, Increment=1)
 
 Root.Control.Setup.Gain.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gain', 'Entry'))
 Root.Control.Setup.Gain.Scale = Slider(Root.Control.Setup.Gain.Bar, Root.Control.Setup.Gain.Frame)
 Root.Control.Setup.Gain.Scale.Config(On_Change = lambda : Update_Camera('Gain', 'Scale'))
-Root.Control.Setup.Gain.Scale.Config(Minimum=8, Maximum=176, Increment=1)
+Root.Control.Setup.Gain.Scale.Config(Minimum=0, Maximum=47, Increment=0.001)
 
 Root.Control.Setup.Gamma.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gamma', 'Entry'))
 Root.Control.Setup.Gamma.Scale = Slider(Root.Control.Setup.Gamma.Bar, Root.Control.Setup.Gamma.Frame)
 Root.Control.Setup.Gamma.Scale.Config(On_Change = lambda : Update_Camera('Gamma', 'Scale'))
-Root.Control.Setup.Gamma.Scale.Config(Minimum=0, Maximum=200, Increment=1)
+Root.Control.Setup.Gamma.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
 
 Root.Control.Setup.Contrast.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Contrast', 'Entry'))
 Root.Control.Setup.Contrast.Scale = Slider(Root.Control.Setup.Contrast.Bar, Root.Control.Setup.Contrast.Frame)
@@ -316,12 +326,12 @@ Root.Control.Setup.Contrast.Scale.Config(Minimum=0, Maximum=200, Increment=1)
 Root.Control.Setup.Sharpness.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Sharpness', 'Entry'))
 Root.Control.Setup.Sharpness.Scale = Slider(Root.Control.Setup.Sharpness.Bar, Root.Control.Setup.Sharpness.Frame)
 Root.Control.Setup.Sharpness.Scale.Config(On_Change = lambda : Update_Camera('Sharpness', 'Scale'))
-Root.Control.Setup.Sharpness.Scale.Config(Minimum=0, Maximum=100, Increment=1)
+Root.Control.Setup.Sharpness.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
 
 Root.Control.Setup.Saturation.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Saturation', 'Entry'))
 Root.Control.Setup.Saturation.Scale = Slider(Root.Control.Setup.Saturation.Bar, Root.Control.Setup.Saturation.Frame)
 Root.Control.Setup.Saturation.Scale.Config(On_Change = lambda : Update_Camera('Saturation', 'Scale'))
-Root.Control.Setup.Saturation.Scale.Config(Minimum=0, Maximum=100, Increment=1)
+Root.Control.Setup.Saturation.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
 
 Root.Control.Size.Set.Bind(On_Click = lambda E: Start_Set_Size())
 Root.Control.Size.Set.Config(Border_Color='#adadad', Background='#AED6F1')
@@ -466,6 +476,21 @@ def Close_Camera():
         Current_Camera = False
 
 Root.Bind(On_Close=lambda : Close_Camera())
+
+def update_sliders():
+    global rpc_client
+    parameters = rpc_client.get_parameter_ranges()
+    for p in parameters:
+        if p['parameter'] == 'exposure':
+            Root.Control.Setup.Exposure.Scale.Config(Minimum=p['min'], Maximum=p['max'], Increment=p['inc'])
+        elif p['parameter'] == 'gain':
+            Root.Control.Setup.Gain.Scale.Config(Minimum=p['min'], Maximum=p['max'], Increment=p['inc'])
+        elif p['parameter'] == 'gamma':
+            Root.Control.Setup.Gamma.Scale.Config(Minimum=p['min'], Maximum=p['max'], Increment=p['inc'])
+        elif p['parameter'] == 'sharpness':
+            Root.Control.Setup.Sharpness.Scale.Config(Minimum=p['min'], Maximum=p['max'], Increment=p['inc'])
+        elif p['parameter'] == 'saturation':
+            Root.Control.Setup.Saturation.Scale.Config(Minimum=p['min'], Maximum=p['max'], Increment=p['inc'])
 
 
 #Start

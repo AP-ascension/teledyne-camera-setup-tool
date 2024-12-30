@@ -118,6 +118,9 @@ def get_size():
     global camera_module
     return camera_module.Size()
 
+def get_parameter_ranges():
+    global camera_module
+    return camera_module.get_parameter_ranges()
 
 
 rpc_server.Method(config)
@@ -144,5 +147,7 @@ rpc_server.Method(trigger)
 rpc_server.Method(get_config)
 rpc_server.Method(get_info)
 rpc_server.Method(get_size)
+
+rpc_server.Method(get_parameter_ranges)
 
 rpc_server.Start()

@@ -8,16 +8,16 @@ class FLIRModule:
         self._Config = ['ID', 'exposure', 'gain', 'gamma', 'contrast', 'sharpness', 'saturation', 'width', 'height', 'left', 'top', 'format']
         self._ID = False
         self._ID_Old = False
-        self._exposure = 25000
+        self._exposure = 30000
         self._gain = 8
-        self._gamma = 100
-        self._contrast = 100
+        self._gamma = 2
+        self._contrast = 0
         self._sharpness = 0
-        self._saturation = 50
+        self._saturation = 2
         self._width = 8000
         self._height = 8000
-        self._left = 100
-        self._top = 1000
+        self._left = 0
+        self._top = 0
         self._format = 'Mono8'
         self._filter = False # FLIR does have support for various filters
 
@@ -410,6 +410,60 @@ class FLIRModule:
                 SDK.CameraAlignFree(self.FrameBuffer)
             except:
                 return False
+
+    def get_parameter_ranges(self):
+        parameters = []
+        try:
+            parameters.append({
+                'parameter': 'exposure',
+                'min': self.device.ExposureTime.GetMin(),
+                'max': min(100000, self.device.ExposureTime.GetMax()), # max is REALLY high
+                'inc': 1 # does not have increment
+            })
+        except Exception as e:
+            print(e)
+
+        try:
+            parameters.append({
+                'parameter': 'gain',
+                'min': self.device.Gain.GetMin(),
+                'max': self.device.Gain.GetMax(),
+                'inc': 0.001 # does not have increment
+            })
+        except Exception as e:
+            print(e)
+
+        try:
+            parameters.append({
+                'parameter': 'gamma',
+                'min': self.device.Gamma.GetMin(),
+                'max': self.device.Gamma.GetMax(),
+                'inc': 0.001 # does not have increment
+            })
+        except Exception as e:
+            print(e)
+
+        try:
+            parameters.append({
+                'parameter': 'sharpness',
+                'min': self.device.Sharpening.GetMin(),
+                'max': self.device.Sharpening.GetMax(),
+                'inc': 0.001 # does not have increment
+            })
+        except Exception as e:
+            print(e)
+
+        try:
+            parameters.append({
+                'parameter': 'saturation',
+                'min': self.device.Saturation.GetMin(),
+                'max': self.device.Saturation.GetMax(),
+                'inc': 0.001 # does not have increment
+            })
+        except Exception as e:
+            print(e)
+
+        return parameters
 
     def set_exposure(self):
         try:
