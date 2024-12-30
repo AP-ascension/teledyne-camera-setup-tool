@@ -40,4 +40,7 @@ cd teledyne-camera-Setup-Tool
 - PySpin Python Library
 
 # Running
-- to run, call python Runtime/Camera.py
+- First do cd Runtime
+- Next, in one terminal, run python FLIR_RPC_Server.py
+- Open another terminal and again cd into Runtime
+- Lastly, run python Camera.py
