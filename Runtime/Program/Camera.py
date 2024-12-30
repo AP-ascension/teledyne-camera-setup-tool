@@ -23,6 +23,30 @@ from pathlib import Path
 from datetime import datetime
 import numpy as np
 
+
+import socket, subprocess, sys
+
+#################################################################################################################################
+# Starting RPC Server
+#################################################################################################################################
+
+def check_server(host, port):
+    try:
+        # Create a socket object
+        with socket.create_connection((host, port), timeout=5):
+            print(f"Server is running on {host}:{port}")
+            return True
+    except (socket.timeout, socket.error):
+        print(f"No server found on {host}:{port}")
+        return False
+
+for no in range(0, 10):
+    if not check_server('127.0.0.1', (61010 + no)):
+        process = subprocess.Popen([sys.executable, "FLIR_RPC_Server.py"] + [str(no)])
+        break
+    else:
+        print(f'Exisitng process running on port: {61010 + no}')
+
 #################################################################################################################################
 # Global Variables
 #################################################################################################################################

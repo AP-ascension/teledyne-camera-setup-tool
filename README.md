@@ -41,6 +41,4 @@ cd teledyne-camera-Setup-Tool
 
 # Running
 - First do cd Runtime
-- Next, in one terminal, run python FLIR_RPC_Server.py
-- Open another terminal and again cd into Runtime
 - Lastly, run python Camera.py

@@ -1,8 +1,12 @@
 from RPC_Classes import Server
 from Connect import FLIR_Module
 
-import os
-rpc_server = Server(61010, '127.0.0.1')
+import sys
+
+process_number = int(sys.argv[1])
+print(process_number)
+
+rpc_server = Server((61010 + process_number), '127.0.0.1')
 camera_module = None
 
 def config(SN):
