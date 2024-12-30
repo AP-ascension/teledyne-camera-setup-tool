@@ -60,8 +60,9 @@ class FLIRModule:
         Device_List.Clear()
         System.ReleaseInstance()
         return Devices
+    
     @staticmethod
-    def format():
+    def formats():
         return ['Mono8', 'RGB8Packed']
 
     def Info(self):
@@ -74,13 +75,7 @@ class FLIRModule:
             return [width_node.GetMax(), height_node.GetMax()]
         else:
             return False
-    '''   
-    def Size(self):
-        if self.device_info:
-            return {'Width': self.Cap.sResolutionRange.iWidthMax, 'Height': self.Cap.sResolutionRange.iHeightMax}
-        else:
-            return False
-    ''' 
+
     def Config_Get(self):
         return [self._exposure, self._gain, self._gamma, self._contrast, self._sharpness, self._saturation, self._width, self._height, self._left, self._top]
 
@@ -308,7 +303,7 @@ class FLIRModule:
             self.device.EndAcquisition()
 
             # set pixel format
-            if self._format in self.format():
+            if self._format in self.formats():
                 node_pixel_format = SDK.CEnumerationPtr(self.node_map.GetNode('PixelFormat'))
                 if SDK.IsAvailable(node_pixel_format) and SDK.IsWritable(node_pixel_format):
                     node_pixel_format_entry_ptr = SDK.CEnumEntryPtr(node_pixel_format.GetEntryByName(self._format))

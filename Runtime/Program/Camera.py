@@ -155,24 +155,26 @@ Root.Connect.Connect.Config(Border_Color='#adadad', Background='#e1e1e1')
 Root.Connect.Connect.Bind(On_Hover_In=lambda E: Root.Connect.Connect.Config(Border_Color='#0078d7', Background='#d5dcf0'))
 Root.Connect.Connect.Bind(On_Hover_Out=lambda E: Root.Connect.Connect.Config(Border_Color='#adadad', Background='#e1e1e1'))
 
-Root.Connect.Format.Add("MONO")
-Root.Connect.Format.Add("RGB")
-Root.Connect.Format.Set("MONO")
+available_formats = CameraModule.formats()
+
+for format in available_formats:
+    Root.Connect.Format.Add(format)
+Root.Connect.Format.Set(available_formats[0])
 
 camera_serial_number = None
+choosen_camera_format = None
 
 def Connect():
-    global Current_Camera, Camera_Run, rpc_client, camera_serial_number
-    Device = Root.Connect.List.Get()
-    Format = Root.Connect.Format.Get()+"8"
-    print(f'Device Selected: {Device}')
-    if Device:
-        Device = Device.split('-')
-        camera_serial_number = Device[-1]
-        print(f'Connecting to camera with SN: {camera_serial_number}')
-        # configure camera by serial number
-        rpc_client.config(camera_serial_number)
-        # here is where I will likely also have to initalize format
+    global Camera_Run, rpc_client, camera_serial_number, choosen_camera_format
+    choosen_device_name_and_SN = Root.Connect.List.Get()
+    choosen_camera_format = Root.Connect.Format.Get()
+
+    if choosen_device_name_and_SN:
+        choosen_device_name_and_SN = choosen_device_name_and_SN.split('-')
+        camera_serial_number = choosen_device_name_and_SN[-1]
+
+        rpc_client.config(camera_serial_number, choosen_camera_format)
+
         Camera_Run = True
         Update()
         _thread.start_new_thread(Run_Camera, ())
@@ -326,13 +328,13 @@ Root.Control.Size.Set.Config(Border_Color='#adadad', Background='#AED6F1')
 Root.Control.Size.Set.Bind(On_Hover_In=lambda E: Root.Control.Size.Set.Config(Border_Color='#0078d7', Background='#5DADE2'))
 Root.Control.Size.Set.Bind(On_Hover_Out=lambda E: Root.Control.Size.Set.Config(Border_Color='#adadad', Background='#AED6F1'))
 
-Root.Control.Size.Width.Entry.Bind(On_Key_Release = lambda E: Update_Size('Width', 'Width'))
+Root.Control.Size.Width.Entry.Bind(On_Key_Release = lambda E: Update_Size('Width',))
 
-Root.Control.Size.Height.Entry.Bind(On_Key_Release = lambda E: Update_Size('Height', 'Height'))
+Root.Control.Size.Height.Entry.Bind(On_Key_Release = lambda E: Update_Size('Height',))
 
-Root.Control.Size.Left.Entry.Bind(On_Key_Release = lambda E: Update_Size('Left', 'Left'))
+Root.Control.Size.Left.Entry.Bind(On_Key_Release = lambda E: Update_Size('Left',))
 
-Root.Control.Size.Topx.Entry.Bind(On_Key_Release = lambda E: Update_Size('Topx', 'Top'))
+Root.Control.Size.Topx.Entry.Bind(On_Key_Release = lambda E: Update_Size('Topx',))
 
 Root.Control.Path.Entry.Set(Save_Path)
 Root.Control.Path.Entry.Config(Align='left')
@@ -389,24 +391,23 @@ def Update_Camera(Type, Widget):
     except:
         print("Error updating camera.")
 
-
-def Update_Size(Type, Sub):
+def Update_Size(Type):
     global rpc_client, rpc_server_lock
 
     try:
         Entry = getattr(Root.Control.Size, Type).Entry
         if Entry.Get():
-            Value = int(Entry.Get())
+            value = int(Entry.Get())
 
             rpc_server_lock.acquire()
             if Type=='Width':
-                rpc_client.set_width(Value)
+                rpc_client.set_width(value)
             elif Type=='Height':
-                rpc_client.set_height(Value)
+                rpc_client.set_height(value)
             elif Type=='Topx':
-                rpc_client.set_top(Value)
+                rpc_client.set_top(value)
             elif Type=='Left':
-                rpc_client.set_left(Value)
+                rpc_client.set_left(value)
             rpc_server_lock.release()
     except:
         print("Error updating camera.")

@@ -9,12 +9,12 @@ print(process_number)
 rpc_server = Server((61010 + process_number), '127.0.0.1')
 camera_module = None
 
-def config(SN):
+def config(SN, format):
     global camera_module
     try:
         if camera_module is None:
             camera_module = FLIRModule()
-            camera_module.Config(ID=SN)
+            camera_module.Config(ID=SN, format=format)
         return True
 
     except Exception as e:
