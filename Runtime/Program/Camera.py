@@ -10,8 +10,8 @@ from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't E
 #################################################################################################################################
 # Import Files
 #################################################################################################################################
-from FLIRModule import FLIRModule as CameraModule
-from RPC import Client
+from .FLIRModule import FLIRModule as CameraModule
+from .RPC import Client
 from multiprocessing import shared_memory
 
 import time
@@ -25,38 +25,30 @@ import numpy as np
 
 
 import socket, subprocess, sys, atexit
-
 #################################################################################################################################
 # Starting RPC Server
 #################################################################################################################################
-
 subprocesses = []
 
 def cleanup():
-    # Terminate all subprocesses when the main program exits
     for proc in subprocesses:
         proc.terminate()
-
-# Register cleanup function to be called on program exit
 atexit.register(cleanup)
 
-def check_server(host, port):
+def port_is_free(host, port):
     try:
-        # Create a socket object
         with socket.create_connection((host, port), timeout=5):
-            print(f"Server is running on {host}:{port}")
-            return True
+            return False
     except (socket.timeout, socket.error):
-        print(f"No server found on {host}:{port}")
-        return False
+        return True
 
-for no in range(0, 10):
-    if not check_server('127.0.0.1', (61010 + no)):
+for no in range(0, 20):
+    if port_is_free('127.0.0.1', (61010 + no)):
         process = subprocess.Popen([sys.executable, "Program/FLIRServer.py"] + [str(no)])
         subprocesses.append(process)
         break
-    else:
-        print(f'Exisitng process running on port: {61010 + no}')
+    if no == 19:
+        print('No free camera ports available. Only 20 ports designated.')
 
 #################################################################################################################################
 # Global Variables
