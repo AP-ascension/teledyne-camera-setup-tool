@@ -2,9 +2,8 @@ import PySpin as SDK
 import numpy as np
 import _thread
 from multiprocessing import shared_memory
-import time
 
-class FLIR_Module:
+class FLIRModule:
     def __init__(self):
         self._Config = ['ID', 'exposure', 'gain', 'gamma', 'contrast', 'sharpness', 'saturation', 'width', 'height', 'left', 'top', 'format']
         self._ID = False
@@ -14,11 +13,11 @@ class FLIR_Module:
         self._gamma = 100
         self._contrast = 100
         self._sharpness = 0
-        self._saturation = 0
+        self._saturation = 50
         self._width = 8000
         self._height = 8000
-        self._left = 0
-        self._top = 0
+        self._left = 100
+        self._top = 1000
         self._format = 'Mono8'
         self._filter = False # FLIR does have support for various filters
 
@@ -63,7 +62,10 @@ class FLIR_Module:
         return Devices
     @staticmethod
     def format():
-        return ['Mono8', 'BGR8']
+        return ['Mono8', 'RGB8Packed']
+
+    def Info(self):
+        return self.device_info
 
     def Size(self):
         width_node = SDK.CIntegerPtr(self.node_map.GetNode('Width'))
@@ -72,12 +74,18 @@ class FLIR_Module:
             return [width_node.GetMax(), height_node.GetMax()]
         else:
             return False
-
+    '''   
+    def Size(self):
+        if self.device_info:
+            return {'Width': self.Cap.sResolutionRange.iWidthMax, 'Height': self.Cap.sResolutionRange.iHeightMax}
+        else:
+            return False
+    ''' 
     def Config_Get(self):
         return [self._exposure, self._gain, self._gamma, self._contrast, self._sharpness, self._saturation, self._width, self._height, self._left, self._top]
 
+
     def Config(self, **Input):
-        print('FLIR_Module: Config()')
         result = True
         # change attributes of specified parameters
         for Each in self._Config:
@@ -92,6 +100,10 @@ class FLIR_Module:
             if device_found:
                 self._ID_Old = self._ID
                 self.configure_trigger()
+
+                result &= self.set_format()
+                result &= self.set_size()
+
             else:
                 print("No camera connected! Exiting")
                 return False
@@ -101,14 +113,11 @@ class FLIR_Module:
         return result
 
     def Connect(self):
-        print('FLIR_Module: Connect()')
         if self.system is None:
             self.system = SDK.System.GetInstance()
         self.device_list = self.system.GetCameras()
 
         num_cameras = self.device_list.GetSize()
-
-        print('Number of cameras detected: %d' % num_cameras)
 
         # Finish if there are no cameras
         if num_cameras == 0:
@@ -123,7 +132,6 @@ class FLIR_Module:
             return False
 
         for idx, device in enumerate(self.device_list):
-            print(f'Device: {idx}')
 
             device_serial_number = SDK.CStringPtr(device.GetTLDeviceNodeMap().GetNode("DeviceSerialNumber"))
 
@@ -145,7 +153,6 @@ class FLIR_Module:
         return False
 
     def configure_trigger(self):
-        print('FLIR_Module: configure_trigger()')
         try:
             #--------------------------------------------------------------------------------
             # turn trigger mode off - trigger mode must be off to configure trigger
@@ -162,8 +169,6 @@ class FLIR_Module:
 
             node_trigger_mode.SetIntValue(node_trigger_mode_off.GetValue())
 
-            print('Trigger mode disabled...')
-
             #--------------------------------------------------------------------------------
             # Set TriggerSelector to AcquisitionStart - This allows trigger to start acquisition itself
             #--------------------------------------------------------------------------------
@@ -179,8 +184,6 @@ class FLIR_Module:
                 return False
             node_trigger_selector.SetIntValue(node_trigger_selector_framestart.GetValue())
 
-            print('Trigger selector set to frame start...')
-
             #--------------------------------------------------------------------------------
             # Set TriggerSource to software
             #--------------------------------------------------------------------------------
@@ -195,7 +198,6 @@ class FLIR_Module:
                 print('Unable to set trigger source (enum entry retrieval). Aborting...')
                 return False
             node_trigger_source.SetIntValue(node_trigger_source_software.GetValue())
-            print('Trigger source set to software...')
 
             #--------------------------------------------------------------------------------
             # turn trigger mode back on
@@ -206,7 +208,6 @@ class FLIR_Module:
                 return False
 
             node_trigger_mode.SetIntValue(node_trigger_mode_on.GetValue())
-            print('Trigger mode turned back on...')
 
             #--------------------------------------------------------------------------------
             # Now I can assign the trigger commmand ptr variable to be used in triggering
@@ -216,8 +217,6 @@ class FLIR_Module:
             if not SDK.IsAvailable(self.trigger_command) or not SDK.IsWritable(self.trigger_command):
                 print('Unable to execute trigger. Aborting...')
                 return False
-            else:
-                print("Trigger command successfully configured!")
 
             #--------------------------------------------------------------------------------
             # Now I can set aquisition mode to continuous
@@ -236,9 +235,6 @@ class FLIR_Module:
             # Set integer value from entry node as new value of enumeration node
             node_acquisition_mode.SetIntValue(node_acquisition_mode_single_frame.GetValue())
 
-            print('Acquisition mode set to continuous...')
-
-            print('Beginning Acquisition...')
             self.device.BeginAcquisition()
 
         except SDK.SpinnakerException as ex:
@@ -248,21 +244,60 @@ class FLIR_Module:
         return True
 
     def Update(self):
-        print('FLIR_Module: Update()')
         result = True
         try:
-
             result &= self.set_exposure() # good
             result &= self.set_gain() # good
             result &= self.set_gamma() # good
-            result &= self.set_contrast() # not implemented
+            #result &= self.set_contrast()
             result &= self.set_sharpness() # good
             result &= self.set_saturation() # implemented but not sure of function until we use color camera
 
-            result &= self.set_size() # good
-
         except Exception as e:
             print(e)
+            return False
+
+        return result
+
+    def set_format(self, force_mono=False):
+        result = True
+        try:
+            # first hault aquisition
+            self.device.EndAcquisition()
+
+            node_pixel_format = SDK.CEnumerationPtr(self.node_map.GetNode('PixelFormat'))
+            if SDK.IsAvailable(node_pixel_format) and SDK.IsWritable(node_pixel_format):
+
+                # Retrieve the desired entry node from the enumeration node
+                node_pixel_format_selectable = SDK.CEnumEntryPtr(node_pixel_format.GetEntryByName('Mono8' if force_mono else self._format))
+                if SDK.IsAvailable(node_pixel_format_selectable) and SDK.IsReadable(node_pixel_format_selectable):
+
+                    # Retrieve the integer value from the entry node
+                    pixel_format_mono8 = node_pixel_format_selectable.GetValue()
+
+                    # Set integer as new value for enumeration node
+                    node_pixel_format.SetIntValue(pixel_format_mono8)
+
+                    # re enable acquisition
+                    self.device.BeginAcquisition()
+
+                else:
+                    print(f'Pixel format ({self._format}) not available...')
+                    if not force_mono:
+                        self.set_format(True)
+                    else:
+                        result = False
+
+            else:
+                print('Pixel format not available...')
+                if not force_mono:
+                    self.set_format(True)
+                else:
+                    result = False
+
+
+        except SDK.SpinnakerException as ex:
+            print('Error: %s' % ex)
             return False
 
         return result
@@ -374,18 +409,14 @@ class FLIR_Module:
         return result
 
     def Close(self):
-        if self.device_info:
+        if self.Device_Info:
             try:
                 SDK.CameraUnInit(self.CameraHandle)
                 SDK.CameraAlignFree(self.FrameBuffer)
             except:
                 return False
 
-    def Info(self):
-        return self.device_info
-
     def set_exposure(self):
-        print('FLIR_Module: set_exposure()')
         try:
             result = True
             if self.device.ExposureAuto.GetAccessMode() != SDK.RW:
@@ -415,7 +446,6 @@ class FLIR_Module:
         return result
 
     def set_gain(self):
-        print('FLIR_Module: set_gain()')
         result = True
         try:
             if self.device.GainAuto.GetAccessMode() != SDK.RW:
@@ -440,7 +470,6 @@ class FLIR_Module:
         return result
 
     def set_gamma(self):
-        print('FLIR_Module: set_gamma()')
         result = True
         try:
             if self.device.GammaEnable.GetAccessMode() != SDK.RW:
@@ -463,24 +492,23 @@ class FLIR_Module:
         return result
 
     def set_contrast(self):
-        print('No implementation for contrast adjustment!')
         return True
 
     def set_sharpness(self):
-        print('FLIR_Module: set_sharpness()')
         result = True
         try:
             # Sharpness and saturation are advanced controls that require the ISP be enabled and the image processing core be utilized
-            # in order to enable ISP, aquistion must be stopped
-
+            # in order to enable ISP, aquistion must be stopped AND format set to mono
+            #self.set_format(force_mono=True)
             # first hault aquisition
             self.device.EndAcquisition()
 
             # now enable ISP if it is not already
-            if self.device.IspEnable.GetAccessMode() != SDK.RW:
-                print('Unable to enable ISP. Aborting...')
-                return False
-            self.device.IspEnable.SetValue(True)
+            if self._format != 'RGB8Packed':
+                if self.device.IspEnable.GetAccessMode() != SDK.RW:
+                    print('Unable to enable ISP. Aborting...')
+                    return False
+                self.device.IspEnable.SetValue(True)
 
             self.device.SharpeningEnable.SetValue(True)
             if self.device.SharpeningEnable.GetAccessMode() != SDK.RW:
@@ -504,7 +532,9 @@ class FLIR_Module:
             self.device.Sharpening.SetValue(sharpening_to_set)
             print(f'Sharpness set to {sharpening_to_set}')
 
-            # re enable acquisition
+
+            # re enable acquisition and reset format
+            #self.set_format()
             self.device.BeginAcquisition()
 
         except SDK.SpinnakerException as ex:
@@ -515,28 +545,30 @@ class FLIR_Module:
         return result
 
     def set_saturation(self):
-        print('FLIR_Module: set_saturation()')
         result = True
         try:
-            if self._format == 'BGR8':
+            if self._format == 'RGB8Packed':
                 # Sharpness and saturation are advanced controls that require the ISP be enabled and the image processing core be utilized
                 # in order to enable ISP, aquistion must be stopped
 
-                # first hault aquisition
+                # first set format to mono and hault aquisition
+                #self.set_format(force_mono=True)
                 self.device.EndAcquisition()
 
                 # now enable ISP if it is not already
+                '''
                 if self.device.IspEnable.GetAccessMode() != SDK.RW:
                     print('Unable to enable ISP. Aborting...')
                     return False
                 self.device.IspEnable.SetValue(True)
-
+                '''
                 self.device.SaturationEnable.SetValue(True)
                 if self.device.SaturationEnable.GetAccessMode() != SDK.RW:
                     print('Unable to enable saturation. Aborting...')
                     return False
 
                 self.device.SaturationEnable.SetValue(True)
+
 
                 if self.device.Saturation.GetAccessMode() != SDK.RW:
                     print('Unable to set saturation value. Aborting...')
@@ -547,7 +579,8 @@ class FLIR_Module:
                 self.device.Saturation.SetValue(saturation_to_set)
                 print(f'Saturation set to {saturation_to_set}')
 
-                # re enable acquisition
+                # re enable acquisition and reset format
+                #self.set_format()
                 self.device.BeginAcquisition()
 
             else:
@@ -560,16 +593,13 @@ class FLIR_Module:
         return result
 
     def start_capture(self):
-        print('FLIR_Module: start_capture()')
         self.capture = True
         _thread.start_new_thread(self.capturing_thread, ())
 
     def end_capture(self):
-        print('FLIR_Module: end_capture()')
         self.capture = False
 
     def capturing_thread(self):
-        print('capturing thread starting')
 
         try:
             if self.device is None:
@@ -603,7 +633,8 @@ class FLIR_Module:
                     print('Image incomplete with image status %d ...' % image_ptr.GetImageStatus())
 
                 else:
-                    retrieved_image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._Format == 'RGB8' else 1)
+                    print(self._format)
+                    retrieved_image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._format == 'RGB8Packed' else 1)
 
                     # ensure existence of shared memory and if None then create new shared memory
                     if self.sm is None:
@@ -646,11 +677,11 @@ class FLIR_Module:
                 print('Image incomplete with image status %d ...' % image_ptr.GetImageStatus())
 
             else:
-                image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._format == 'BGR8' else 1)
+                image = image_ptr.GetData().reshape(image_ptr.GetHeight(),image_ptr.GetWidth(), 3 if self._format == 'RGB8Packed' else 1)
 
                 if self.sm is None:
                     memory_frame = np.zeros(image.shape, dtype=np.uint8)
-                    self.sm = shared_memory.SharedMemory(name='FlirSetupTool', create=True, size=memory_frame.nbytes)
+                    self.sm = shared_memory.SharedMemory(name=f'cam{self._ID}', create=True, size=memory_frame.nbytes)
 
                 image_shape = image.shape
                 image_buffer = np.ndarray(image.shape, dtype=image.dtype, buffer=self.sm.buf)
@@ -661,6 +692,7 @@ class FLIR_Module:
 
         except SDK.SpinnakerException as ex:
             print('Error: %s' % ex)
+            self.Config()
             return False
 
         return image_shape

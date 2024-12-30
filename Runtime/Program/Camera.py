@@ -10,9 +10,9 @@ from Nucleon.Runner import * ###!REQUIRED ------- Any Script Before This Won't E
 #################################################################################################################################
 # Import Files
 #################################################################################################################################
-from Connect import FLIR_Module as Camera
-from RPC_Classes import Client
-from multiprocessing import Process, shared_memory
+from FLIRModule import FLIRModule as CameraModule
+from RPC import Client
+from multiprocessing import shared_memory
 
 import time
 import _thread
@@ -52,7 +52,7 @@ def check_server(host, port):
 
 for no in range(0, 10):
     if not check_server('127.0.0.1', (61010 + no)):
-        process = subprocess.Popen([sys.executable, "FLIR_RPC_Server.py"] + [str(no)])
+        process = subprocess.Popen([sys.executable, "Program/FLIRServer.py"] + [str(no)])
         subprocesses.append(process)
         break
     else:
@@ -167,17 +167,19 @@ Root.Connect.Format.Add("MONO")
 Root.Connect.Format.Add("RGB")
 Root.Connect.Format.Set("MONO")
 
+camera_serial_number = None
+
 def Connect():
-    global Current_Camera, Camera_Run, rpc_client
+    global Current_Camera, Camera_Run, rpc_client, camera_serial_number
     Device = Root.Connect.List.Get()
     Format = Root.Connect.Format.Get()+"8"
     print(f'Device Selected: {Device}')
     if Device:
         Device = Device.split('-')
-        SN = Device[-1]
-        print(f'Connecting to camera with SN: {SN}')
+        camera_serial_number = Device[-1]
+        print(f'Connecting to camera with SN: {camera_serial_number}')
         # configure camera by serial number
-        rpc_client.config(SN)
+        rpc_client.config(camera_serial_number)
         # here is where I will likely also have to initalize format
         Camera_Run = True
         Update()
@@ -221,7 +223,7 @@ def Run_Camera():
 
                     Image_Loading = True
                     if shm is None:
-                        shm = shared_memory.SharedMemory(name='FlirSetupTool')
+                        shm = shared_memory.SharedMemory(name=f'cam{camera_serial_number}')
                     Temp_Frame = np.ndarray(dim, dtype=np.uint8, buffer=shm.buf)
 
                     if Temp_Frame.shape[2] == 1:
@@ -274,7 +276,7 @@ def Search():
 
 def Search_Init():
     global Camera_List
-    Camera_List = Camera.Search()
+    Camera_List = CameraModule.Search()
     Root.Connect.List.Clear()
     for Device in Camera_List:
         Root.Connect.List.Add(f"{Device['DeviceDisplayName']}-{Device['DeviceSerialNumber']}")

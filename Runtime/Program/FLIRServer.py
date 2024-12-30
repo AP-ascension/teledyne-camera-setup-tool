@@ -1,5 +1,5 @@
-from RPC_Classes import Server
-from Connect import FLIR_Module
+from RPC import Server
+from FLIRModule import FLIRModule
 
 import sys
 
@@ -13,7 +13,7 @@ def config(SN):
     global camera_module
     try:
         if camera_module is None:
-            camera_module = FLIR_Module()
+            camera_module = FLIRModule()
             camera_module.Config(ID=SN)
         return True
 
