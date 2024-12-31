@@ -7,15 +7,15 @@
 	Contains GUI design files that are editable using Gluonix Designer. This allows customization of the graphical interface according to your needs.
 - Runtime:
 
-	Includes the runtime files necessary for running the tool. The runtime requires Python 3.11, but the design module can be exported to run with other Python versions as well.
+	Includes the runtime files necessary for running the tool. The runtime requires Python 3.10, but the design module can be exported to run with other Python versions as well.
 
 # Features
 - Camera Settings Adjustment:
 - Exposure
 - Gamma
 - Gain
-- Contrast
-- Saturation (not yet implemented)
+- Contrast -> Not implemented as FLIR does not offer contrast adjustment
+- Saturation
 - Sharpness
 - Image Size (not yet implemented)
 - Image Capture:
@@ -32,6 +32,9 @@
 ```
 git clone https://github.com/AP-ascension/teledyne-camera-setup-tool.git
 cd teledyne-camera-Setup-Tool
+cd Runtime
+Ensure you have the spinnaker sdk python wheel in the Runtime folder
+pip install -r requirements.txt
 ```
 
 # Requirements
@@ -42,3 +45,6 @@ cd teledyne-camera-Setup-Tool
 # Running
 - First do cd Runtime
 - Lastly, run python Camera.py
+
+# Limitations
+- If you start two separate camera setup tools and select the same camera for both of them, you will have shared memory conflict. I dont plan on fixing this as I dont know why one would ever want to do this.

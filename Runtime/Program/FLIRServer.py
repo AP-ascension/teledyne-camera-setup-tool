@@ -14,10 +14,10 @@ def config(SN, format):
     try:
         if camera_module is None:
             camera_module = FLIRModule()
-        
-        camera_module.Config(ID=SN, format=format)
-        camera_module.delete_shared_memory()
-        
+        else:
+            camera_module.delete_shared_memory()
+
+        camera_module.config(ID=SN, format=format)
         return True
 
     except Exception as e:
@@ -25,93 +25,64 @@ def config(SN, format):
         return False
 
 def trigger():
-    '''
-    This method will take a single image and save it to the shared memory.
-
-    Returns:
-    image_shape: tuple
-    '''
     global camera_module
     try:
-        if camera_module is None:
-            config()
-
-        dim = camera_module.trigger()
-
-        return dim
+        return camera_module.trigger()
     except Exception as e:
         print(e)
         return False
 
-# clear the shared memory
 def delete_shared_memory():
     global camera_module
     camera_module.delete_shared_memory()
 
 def set_exposure(microseconds):
     global camera_module
-    return camera_module.Config(exposure=microseconds)
+    return camera_module.config(exposure=microseconds)
 
 def set_gain(gain):
     global camera_module
-    return camera_module.Config(gain=gain)
+    return camera_module.config(gain=gain)
 
 def set_gamma(gamma):
     global camera_module
-    return camera_module.Config(gamma=gamma)
+    return camera_module.config(gamma=gamma)
 
 def set_contrast(contrast):
     global camera_module
-    return camera_module.Config(contrast=contrast)
+    return camera_module.config(contrast=contrast)
 
 def set_sharpness(sharpness):
     global camera_module
-    return camera_module.Config(sharpness=sharpness)
+    return camera_module.config(sharpness=sharpness)
 
 def set_saturation(saturation):
     global camera_module
-    return camera_module.Config(saturation=saturation)
+    return camera_module.config(saturation=saturation)
 
 def set_width(width):
     global camera_module
-    return camera_module.Config(width=width)
+    return camera_module.config(width=width)
 
 def set_height(height):
     global camera_module
-    return camera_module.Config(height=height)
+    return camera_module.config(height=height)
 
 def set_left(left):
     global camera_module
-    return camera_module.Config(left=left)
+    return camera_module.config(left=left)
 
 def set_top(top):
     global camera_module
-    return camera_module.Config(top=top)
+    return camera_module.config(top=top)
 
 def set_format(format):
     global camera_module
-    return camera_module.Config(format=format)
-
-
-def start_video_stream():
-    global camera_module
-
-    if camera_module is None:
-        config()
-
-    camera_module.start_capture()
-
-def end_video_stream():
-    global camera_module
-
-    if camera_module is None:
-        config()
-
-    camera_module.end_capture()
+    return camera_module.config(format=format)
 
 def get_config():
     global camera_module
-    return camera_module.Config_Get()
+    return camera_module.get_config()
 
 def get_info():
     global camera_module
@@ -141,9 +112,6 @@ rpc_server.Method(set_top)
 rpc_server.Method(set_format)
 
 rpc_server.Method(delete_shared_memory)
-
-rpc_server.Method(start_video_stream)
-rpc_server.Method(end_video_stream)
 
 rpc_server.Method(trigger)
 

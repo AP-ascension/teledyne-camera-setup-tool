@@ -42,10 +42,12 @@ def port_is_free(host, port):
     except (socket.timeout, socket.error):
         return True
 
+app_number = None
 for no in range(0, 20):
     if port_is_free('127.0.0.1', (61010 + no)):
         process = subprocess.Popen([sys.executable, "Program/FLIRServer.py"] + [str(no)])
         subprocesses.append(process)
+        app_number = no
         break
     if no == 19:
         print('No free camera ports available. Only 20 ports designated.')
@@ -54,7 +56,7 @@ for no in range(0, 20):
 # Global Variables
 #################################################################################################################################
 
-rpc_client = Client(61010)
+rpc_client = Client(61010 + app_number)
 rpc_server_lock = _thread.allocate_lock()
 shm = None
 
@@ -177,7 +179,7 @@ def Connect():
 
         Camera_Run = True
         Update()
-        update_sliders()
+        update_slider_ranges()
         _thread.start_new_thread(Run_Camera, ())
 
         Root.Connect.Hide()
@@ -377,10 +379,8 @@ def Update_Camera(Type, Widget):
         if Entry.Get():
             if Widget=='Entry':
                 Value = round(float(Entry.Get()), 3)
-                Scale.Set(Value)
             else:
                 Value = round(float(Scale.Get()), 3)
-                Entry.Set(Value)
 
             rpc_server_lock.acquire()
             if Type=='Exposure':
@@ -397,6 +397,8 @@ def Update_Camera(Type, Widget):
             elif Type=='Saturation':
                 rpc_client.set_saturation(Value)
             rpc_server_lock.release()
+
+            Update()
 
     except:
         print("Error updating camera.")
@@ -477,7 +479,7 @@ def Close_Camera():
 
 Root.Bind(On_Close=lambda : Close_Camera())
 
-def update_sliders():
+def update_slider_ranges():
     global rpc_client
     parameters = rpc_client.get_parameter_ranges()
     for p in parameters:
