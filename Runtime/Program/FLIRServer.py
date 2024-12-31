@@ -14,7 +14,10 @@ def config(SN, format):
     try:
         if camera_module is None:
             camera_module = FLIRModule()
-            camera_module.Config(ID=SN, format=format)
+        
+        camera_module.Config(ID=SN, format=format)
+        camera_module.delete_shared_memory()
+        
         return True
 
     except Exception as e:

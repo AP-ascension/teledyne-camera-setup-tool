@@ -8,17 +8,18 @@ class FLIRModule:
         self._Config = ['ID', 'exposure', 'gain', 'gamma', 'contrast', 'sharpness', 'saturation', 'width', 'height', 'left', 'top', 'format']
         self._ID = False
         self._ID_Old = False
-        self._exposure = 30000
+        self._exposure = 50000
         self._gain = 8
-        self._gamma = 2
+        self._gamma = 0.75
         self._contrast = 0
         self._sharpness = 0
-        self._saturation = 2
+        self._saturation = 1.6
         self._width = 8000
         self._height = 8000
         self._left = 0
         self._top = 0
         self._format = 'Mono8'
+        self._format_old = None
         self._filter = False # FLIR does have support for various filters
 
         self.system = None
@@ -96,12 +97,16 @@ class FLIRModule:
                 self._ID_Old = self._ID
                 self.configure_trigger()
 
-                result &= self.set_format()
                 result &= self.set_size()
 
             else:
                 print("No camera connected! Exiting")
                 return False
+            
+        if self._format_old is None or (self._format_old != self._format):
+            
+            self._format_old = self._format
+            self.set_format()
 
         result &= self.Update()
 
@@ -428,7 +433,7 @@ class FLIRModule:
                 'parameter': 'gain',
                 'min': self.device.Gain.GetMin(),
                 'max': self.device.Gain.GetMax(),
-                'inc': 0.001 # does not have increment
+                'inc': 0.1 # does not have increment
             })
         except Exception as e:
             print(e)
@@ -438,7 +443,7 @@ class FLIRModule:
                 'parameter': 'gamma',
                 'min': self.device.Gamma.GetMin(),
                 'max': self.device.Gamma.GetMax(),
-                'inc': 0.001 # does not have increment
+                'inc': 0.1 # does not have increment
             })
         except Exception as e:
             print(e)
@@ -448,7 +453,7 @@ class FLIRModule:
                 'parameter': 'sharpness',
                 'min': self.device.Sharpening.GetMin(),
                 'max': self.device.Sharpening.GetMax(),
-                'inc': 0.001 # does not have increment
+                'inc': 0.1 # does not have increment
             })
         except Exception as e:
             print(e)
@@ -458,7 +463,7 @@ class FLIRModule:
                 'parameter': 'saturation',
                 'min': self.device.Saturation.GetMin(),
                 'max': self.device.Saturation.GetMax(),
-                'inc': 0.001 # does not have increment
+                'inc': 0.1 # does not have increment
             })
         except Exception as e:
             print(e)

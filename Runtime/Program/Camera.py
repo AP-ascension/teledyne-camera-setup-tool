@@ -311,12 +311,12 @@ Root.Control.Setup.Exposure.Scale.Config(Minimum=100, Maximum=100000, Increment=
 Root.Control.Setup.Gain.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gain', 'Entry'))
 Root.Control.Setup.Gain.Scale = Slider(Root.Control.Setup.Gain.Bar, Root.Control.Setup.Gain.Frame)
 Root.Control.Setup.Gain.Scale.Config(On_Change = lambda : Update_Camera('Gain', 'Scale'))
-Root.Control.Setup.Gain.Scale.Config(Minimum=0, Maximum=47, Increment=0.001)
+Root.Control.Setup.Gain.Scale.Config(Minimum=0, Maximum=47, Increment=0.1)
 
 Root.Control.Setup.Gamma.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Gamma', 'Entry'))
 Root.Control.Setup.Gamma.Scale = Slider(Root.Control.Setup.Gamma.Bar, Root.Control.Setup.Gamma.Frame)
 Root.Control.Setup.Gamma.Scale.Config(On_Change = lambda : Update_Camera('Gamma', 'Scale'))
-Root.Control.Setup.Gamma.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
+Root.Control.Setup.Gamma.Scale.Config(Minimum=0, Maximum=4, Increment=0.1)
 
 Root.Control.Setup.Contrast.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Contrast', 'Entry'))
 Root.Control.Setup.Contrast.Scale = Slider(Root.Control.Setup.Contrast.Bar, Root.Control.Setup.Contrast.Frame)
@@ -326,12 +326,12 @@ Root.Control.Setup.Contrast.Scale.Config(Minimum=0, Maximum=200, Increment=1)
 Root.Control.Setup.Sharpness.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Sharpness', 'Entry'))
 Root.Control.Setup.Sharpness.Scale = Slider(Root.Control.Setup.Sharpness.Bar, Root.Control.Setup.Sharpness.Frame)
 Root.Control.Setup.Sharpness.Scale.Config(On_Change = lambda : Update_Camera('Sharpness', 'Scale'))
-Root.Control.Setup.Sharpness.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
+Root.Control.Setup.Sharpness.Scale.Config(Minimum=0, Maximum=4, Increment=0.1)
 
 Root.Control.Setup.Saturation.Entry.Bind(On_Key_Release = lambda E: Update_Camera('Saturation', 'Entry'))
 Root.Control.Setup.Saturation.Scale = Slider(Root.Control.Setup.Saturation.Bar, Root.Control.Setup.Saturation.Frame)
 Root.Control.Setup.Saturation.Scale.Config(On_Change = lambda : Update_Camera('Saturation', 'Scale'))
-Root.Control.Setup.Saturation.Scale.Config(Minimum=0, Maximum=4, Increment=0.001)
+Root.Control.Setup.Saturation.Scale.Config(Minimum=0, Maximum=4, Increment=0.1)
 
 Root.Control.Size.Set.Bind(On_Click = lambda E: Start_Set_Size())
 Root.Control.Size.Set.Config(Border_Color='#adadad', Background='#AED6F1')
@@ -376,10 +376,10 @@ def Update_Camera(Type, Widget):
         Scale = getattr(Setting, 'Scale')
         if Entry.Get():
             if Widget=='Entry':
-                Value = int(Entry.Get())
+                Value = round(float(Entry.Get()), 3)
                 Scale.Set(Value)
             else:
-                Value = int(Scale.Get())
+                Value = round(float(Scale.Get()), 3)
                 Entry.Set(Value)
 
             rpc_server_lock.acquire()
