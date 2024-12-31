@@ -43,8 +43,12 @@ pip install -r requirements.txt
 - PySpin Python Library
 
 # Running
-- First do cd Runtime
+- First ensure you are in the Runtime direcory and have all of the requirements installed
 - Lastly, run python Camera.py
 
 # Limitations
 - If you start two separate camera setup tools and select the same camera for both of them, you will have shared memory conflict. I dont plan on fixing this as I dont know why one would ever want to do this.
+
+
+## Known Issues
+- The slider ranges do not properly adjust until after the first time one is touched. Need to figure out how to have these properly set before the setup page is even shown. Seems to be an issue with this.
